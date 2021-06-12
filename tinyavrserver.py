@@ -1,4 +1,19 @@
-#!/bin/python3
+# This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License version 3 as published by
+#     the Free Software Foundation.
+
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+
+#     You should have received a copy of the GNU General Public License
+#     along with this program.  If not, see <https://www.gnu.org/licenses/>
+
+#Firmware for the tinyavrprogrammer, an RP2040-based high voltage serial programmer (HVSP).
+#NOTE: Comments refer to the chip/microcontroller being programmed as "the microcontroller" and to the tinyavrprogrammer as "the programmer"
+#NOTE: See the manpage for supported microcontrollers. The support can be trivially extended.
+
 import os
 import sys
 import usb.core
@@ -57,6 +72,8 @@ class Commands(IntEnum):
     WAS_ERASED=18
 def encnum(num:int, b:int):
     return num.to_bytes(b, "little")
+
+#creates a 64 bit hash by xoring the data together 64 bits at a time, exactly the same way the programmer generates its hashes. 
 def hash(data:bytes):
     h = 0
     i = 0
@@ -65,6 +82,7 @@ def hash(data:bytes):
         h = h ^ num
         i += 8
     return h
+#some chips only have one fuse register, this will be written into low
 class fuses:
     def __init__(self):
         self.low = 0
@@ -111,6 +129,7 @@ class prog:
     epout = None
 
     info:chipinfo = None
+    #create a package to be sent though the usb interface
     def makepackage(self, cmd:Commands, contents = None):
         if(type(contents) is str):
             contents = contents.encode()
@@ -119,19 +138,20 @@ class prog:
         msg = int(cmd).to_bytes(1, "little") + contents
         msg += b"\0" * (packet_len-len(msg))
         return msg
-
+    # check for errors in the return message
     def checkreturn(self, ret:bytes):
         if(type(ret[0]) is not int):
             assert ord(ret[0]) == int(Responses.OK), "error: " + str(ord(ret[0]))
         else:
             assert ret[0] == int(Responses.OK), "error: " + str(ret[0])
-
+    # write to the programmer
     def write(self, data: bytes):
         if(type(data) is str):
             data = data.encode()
         data += b"\0" * (packet_len-len(data))
         assert len(data) == packet_len
         assert self.epout.write(data, packet_len) == len(data)
+    #read from the programmer
     def read(self, tmout=5000):
         b = 1
         dt = []
@@ -141,6 +161,7 @@ class prog:
         self.write(data)
         return self.read(tmout)
 
+    # should return the exact contents of msg if all goes well.
     def cmd_echo(self, msg:str):
         assert len(msg) <= packet_len-2
         bmsg = msg.encode()
@@ -149,6 +170,7 @@ class prog:
         self.checkreturn(ret)
         return ret[2:(2+ret[1])].decode(encoding="utf-8")
 
+    # check whether the programmer is ready (main power, 12v stable, etc)
     def cmd_prog_ready(self):
         msg = self.makepackage(Commands.PROG_READY)
         ret = self.writeread(msg)
@@ -160,26 +182,30 @@ class prog:
         self.checkreturn(ret)
         return bool(ret[2])
 
+    # Power the microcontroller on. Note that you should aim to keep the microcontroller powered for as short a time as possible
     def cmd_power_on(self):
         msg = self.makepackage(Commands.POWER_ON)
         ret = self.writeread(msg)
         self.checkreturn(ret)
+    # note that the programmer will power the microcontroller down by itself after a while
     def cmd_power_off(self):
         msg = self.makepackage(Commands.POWER_OFF)
         ret = self.writeread(msg)
         self.checkreturn(ret)
 
+    # Retrieves information about the microcontroller being programmed. Fails if it does not respond. Required before any other operation on the
     def cmd_check(self):
         msg = self.makepackage(Commands.CHECK)
         ret = self.writeread(msg)
         self.checkreturn(ret)
         self.info = chipinfo(ret[2:])
         return self.info
+    #erases flash and (not necessarily, check the documentation) the eeprom required before programming the chi
     def cmd_chip_erase(self):
         msg = self.makepackage(Commands.CHIP_ERASE)
         ret = self.writeread(msg)
         self.checkreturn(ret)
-
+    # write data into the programmer's memory
     def cmd_write_data(self, addr:int, data:bytes, dtlen:int = -1):
         if(dtlen == -1):
             dtlen = len(data)
@@ -188,6 +214,7 @@ class prog:
         msg = self.makepackage(Commands.WRITE_DATA, encnum(addr, 2) + encnum(dtlen, 1) + data[0:dtlen])
         ret = self.writeread(msg)
         self.checkreturn(ret)
+    # read data from the programmer's memory
     def cmd_read_data(self, addr:int, dtlen:int):
         assert dtlen <= packet_len-2, "write_data is limited to packet_len-2 bytes"
         msg = self.makepackage(Commands.READ_DATA, encnum(addr, 2) + encnum(dtlen, 1))
@@ -200,25 +227,29 @@ class prog:
         self.checkreturn(ret)
         return int.from_bytes(bytes(ret[2:10]), "little")
     
+    #do note that this operates on the microcontroller and programmer's memory. To retrieve or write data from the host PC you have to use cmd_read_data and cmd_write_data, which operate on the programmer's internal memory
     def cmd_read_flash(self, startpage:int, npages:int, destination:int):
         msg = self.makepackage(Commands.READ_FLASH, encnum(startpage, 2) + encnum(npages, 2) + encnum(destination, 2))
         ret = self.writeread(msg)
         self.checkreturn(ret)
+    #do note that this operates on the microcontroller and programmer's memory. To retrieve or write data from the host PC you have to use cmd_read_data and cmd_write_data, which operate on the programmer's internal memory
     def cmd_write_flash(self, startpage:int, npages:int, source:int):
         msg = self.makepackage(Commands.WRITE_FLASH, encnum(startpage, 2) + encnum(npages, 2) + encnum(source, 2))
         ret = self.writeread(msg)
         self.checkreturn(ret)
-    
+
+    #do note that this operates on the microcontroller and programmer's memory. To retrieve or write data from the host PC you have to use cmd_read_data and cmd_write_data, which operate on the programmer's internal memory
     def cmd_read_eeprom(self, startpage:int, npages:int, destination:int):
         msg = self.makepackage(Commands.READ_EEPROM, encnum(startpage, 2) + encnum(npages, 2) + encnum(destination, 2))
         ret = self.writeread(msg)
         self.checkreturn(ret)
-
+    #do note that this operates on the microcontroller and programmer's memory. To retrieve or write data from the host PC you have to use cmd_read_data and cmd_write_data, which operate on the programmer's internal memory
     def cmd_write_eeprom(self, startpage:int, npages:int, source:int):
         msg = self.makepackage(Commands.WRITE_EEPROM, encnum(startpage, 2) + encnum(npages, 2) + encnum(source, 2))
         ret = self.writeread(msg)
         self.checkreturn(ret)
 
+    # this should return all 0s for fuses that are not present in a given microcontroller
     def cmd_read_fuses(self):
         msg = self.makepackage(Commands.READ_FUSES)
         ret = self.writeread(msg)
@@ -301,7 +332,7 @@ class prog:
 
             assert retmsg == testmsg, (retmsg + "!=" + testmsg)
         print("success")
-    def release(self):
+    def release(self): # I think __del__ should've been used here instead.
         try: # cleaning the input buffer working around a weird bug
             print("rem:", self.epin.read(packet_len, timeout=100))
         except:
@@ -628,6 +659,7 @@ def matcharg(s):
             return True 
     return False
 
+#parse an AVRDUDE command
 def execute_cmd(cmd):
     noautoerase = matcharg("-D")
     forceerase = matcharg("-e")
@@ -720,8 +752,8 @@ def execute_cmd(cmd):
         return 1
 
 
+#this function parses the script arguments in a way that's compatible with AVRDUDE. See the AVRDUDE man page.
 def main(targetchip):
-
     forced = matcharg("-F")
     if not forced:
         b = True
@@ -734,13 +766,13 @@ def main(targetchip):
                 print(ex)
                 continue
             if not info.name == targetchip[0] and not info.name == targetchip[1]:
-                print("invalid chip", info.name)
+                print("invalid microcontroller", info.name)
                 break
             b = False
-            print ("detected chip:", info.name)
+            print ("detected microcontroller:", info.name)
             break
         if b:
-            print("Unable to communicate with the chip/programmer")
+            print("Unable to communicate with the microcontroller/programmer")
             return 1
     cmds = []
     i = 1
