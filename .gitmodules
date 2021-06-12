@@ -1,0 +1,3 @@
+[submodule "tinyprogrammer"]
+	path = tinyprogrammer
+	url = http://c-4:3000/developer/tinyprogrammer.git
