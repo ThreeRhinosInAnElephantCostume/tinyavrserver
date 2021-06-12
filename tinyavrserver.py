@@ -13,7 +13,7 @@
     # along with tinyavrprogrammer.  If not, see <https://www.gnu.org/licenses/>.
 
 #Firmware for the tinyavrprogrammer, an RP2040-based high voltage serial programmer (HVSP).
-#NOTE: Comments refer to the chip/microcontroller being programmed as "the microcontroller" and to the tinyavrprogrammer as "the programmer"
+#NOTE: Comments refer to the chip/microcontroller being programmed as "the microcontroller" and to the tinyavrprogrammer as "the programmer" or "PROG"
 #NOTE: See the manpage for supported microcontrollers. The support can be trivially extended.
 
 import os
