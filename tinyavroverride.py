@@ -1,3 +1,5 @@
+#!/bin/python3
+
     # This file is part of tinyavrprogrammer.
 
     # tinyavrprogrammer is free software: you can redistribute it and/or modify
@@ -12,7 +14,6 @@
     # You should have received a copy of the GNU General Public License
     # along with tinyavrprogrammer.  If not, see <https://www.gnu.org/licenses/>.
 
-#!/bin/python3
 import sys
 import os
 

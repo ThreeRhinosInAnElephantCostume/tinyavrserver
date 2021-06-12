@@ -193,9 +193,23 @@ RGB LED indicator.
 .PP
 The firmware communicates with the programmer over USB, the packet size
 is 64 bytes, however this could probably be extended.
-.PP
 The programmer has a 128kB buffer that it uses to store intermediate
 data.
+.PP
+The first byte of a PC -> PROG packet contains a commandID, the second
+contains the size of the package.
+The remaining 62 bytes may contain command data.
+.PP
+The first byte of a PROG -> PC packet contains a result compatible with
+the Responses enum.
+Any response other than 1 is an error and will result in an assertion
+failure.
+.PP
+All writes to the PROG should be followed by a read and check.
+No errors should go ignored.
+All logic and cmd errors can be recovered from, hardware errors should
+result in the program terminating after sending appropriate power-off
+commands to the MCU (if relevant) and releasing the USB context.
 .SS Supported Microcontrollers
 .PP
 The following microcontrollers are currently supported.
@@ -237,6 +251,12 @@ See the documentation for the relevant MCU.
 \f[I]eeprom_page_bytes\f[R]\ \[em]\ number of EEPROM bytes per page.
 .IP "8." 3
 \f[I]eeprom_page_num\f[R] \[em] number of EEPROM pages.
+.SH EXAMPLES
+.PP
+On ATTiny85: Set fuses to 0xE2 and 0x56, flash firmware.hex.
+\f[B]tinyavroverride.py\f[R] -p t85 -Ulfuse:w:0xE2:m -Uhfuse:w:0x56:m
+-Uflash:w:firmware.hex:i See \f[B]AVRDUDE(1)\f[R] for a comprehensible
+breakdown of available commands.
 .SH BUGS
 .PP
 The way the programmer handles reading fuses does not account for MCUs
@@ -277,7 +297,7 @@ NPN transistor with a MOSFET and increasing the operating frequency.
 .PP
 I would be much simpler to use opto-isolation for all channels instead
 of using 3 different methods.
-.SH LICENCE
+.SH LICENSE
 .PP
 This manual, as well as all of the tinyavrprogrammer components
 described here

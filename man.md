@@ -116,9 +116,13 @@ The globals.hpp file of the tinyprogrammer contains all of the pin constants
 
 ## Communication Protocol
 
-The firmware communicates with the programmer over USB, the packet size is 64 bytes, however this could probably be extended.
+The firmware communicates with the programmer over USB, the packet size is 64 bytes, however this could probably be extended. The programmer has a 128kB buffer that it uses to store intermediate data.
 
-The programmer has a 128kB buffer that it uses to store intermediate data.
+The first byte of a PC -> PROG packet contains a commandID, the second contains the size of the package. The remaining 62 bytes may contain command data.
+
+The first byte of a PROG -> PC packet contains a result compatible with the Responses enum. Any response other than 1 is an error and will result in an assertion failure.
+
+All writes to the PROG should be followed by a read and check. No errors should go ignored. All logic and cmd errors can be recovered from, hardware errors should result in the program terminating after sending appropriate power-off commands to the MCU (if relevant) and releasing the USB context.
 
 ## Supported Microcontrollers
 
@@ -149,6 +153,12 @@ the *CHIP_ID* enum contains the IDs of the supported MCUs.
 7. *eeprom_page_bytes* — number of EEPROM bytes per page.
 8. *eeprom_page_num* — number of EEPROM pages.
 
+# EXAMPLES
+
+On ATTiny85: Set fuses to 0xE2 and 0x56, flash firmware.hex.
+**tinyavroverride.py** -p t85 -Ulfuse:w:0xE2:m -Uhfuse:w:0x56:m -Uflash:w:firmware.hex:i
+See **AVRDUDE(1)** for a comprehensible breakdown of available commands.
+
 # BUGS
 
 The way the programmer handles reading fuses does not account for MCUs that have less or more than 3. This should work fine with the ATTinyx5 and ATtinyx4 series, but might be an issue with some of the older ATTiny MCUs. This shouldn't require much effort to fix if it does become an issue.
@@ -173,7 +183,7 @@ The boost-converter design is flawed and incapable of supplying more than ~30mA.
 
 I would be much simpler to use opto-isolation for all channels instead of using 3 different methods.
 
-# LICENCE
+# LICENSE
 
 This manual, as well as all of the tinyavrprogrammer components described here 
 
